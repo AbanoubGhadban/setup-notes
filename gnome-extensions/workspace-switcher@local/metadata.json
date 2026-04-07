@@ -1,0 +1,7 @@
+{
+    "uuid": "workspace-switcher@local",
+    "name": "Workspace Switcher (D-Bus)",
+    "description": "Exposes D-Bus methods to switch workspaces from CLI/SSH on Wayland",
+    "shell-version": ["42"],
+    "url": ""
+}
