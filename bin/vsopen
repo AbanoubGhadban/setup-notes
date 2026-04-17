@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# vsopen -- open a path in VS Code, auto-routing via Remote-SSH when over SSH.
+#
+# - Local shell: delegates to `code <path>`
+# - SSH shell:   delegates to `rcode <path>` (opens on the SSH client's VS Code
+#                via Remote-SSH; see rcode-over-ssh.md)
+#
+# SSH is detected via $SSH_CONNECTION, which sshd sets automatically in every
+# SSH session. This covers direct `ssh host` as well as tunneled connections
+# (e.g. Claude Code Desktop's SSH wiring).
+
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+  echo "Usage: vsopen <path> [<path>...]" >&2
+  exit 1
+fi
+
+if [ -n "${SSH_CONNECTION:-}" ]; then
+  exec rcode "$@"
+else
+  exec code "$@"
+fi
