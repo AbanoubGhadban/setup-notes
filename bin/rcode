@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# rcode -- open a path on this (remote) host in VS Code on the SSH client.
+#
+# How it works: relies on a reverse SSH tunnel (RemoteForward) that carries
+# localhost:$RCODE_MAC_PORT here back to the SSH client's sshd. We SSH back
+# through that tunnel and invoke `code --remote ssh-remote+$RCODE_SSH_HOST`
+# so the client's VS Code opens the path via Remote-SSH.
+#
+# See rcode-over-ssh.md for the full setup (both sides).
+
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+  cat >&2 <<'EOF'
+Usage: rcode <path> [<path>...]
+
+Opens the given paths on the SSH client's VS Code via Remote-SSH.
+
+Required environment:
+  RCODE_MAC_USER   SSH username on the client machine
+  RCODE_SSH_HOST   Host alias in the client's ~/.ssh/config (default: `hostname -s`)
+  RCODE_MAC_PORT   reverse-forwarded port on this host       (default: 52698)
+EOF
+  exit 1
+fi
+
+MAC_USER="${RCODE_MAC_USER:?set RCODE_MAC_USER to your SSH username on the client}"
+MAC_PORT="${RCODE_MAC_PORT:-52698}"
+SSH_HOST="${RCODE_SSH_HOST:-$(hostname -s)}"
+
+# Resolve each argument to an absolute path. `-m` tolerates nonexistent files
+# (so `rcode new-file.md` works for new files).
+paths=()
+for arg in "$@"; do
+  paths+=("$(realpath -m -- "$arg")")
+done
+
+# Quote each path safely for the remote shell (handles spaces, $, etc.).
+printf -v quoted ' %q' "${paths[@]}"
+inner_cmd="code --remote ssh-remote+${SSH_HOST}${quoted}"
+
+# Wrap in `bash -lc` so the client's login-shell PATH is used. Non-interactive
+# SSH on macOS otherwise misses /usr/local/bin, where VS Code installs `code`.
+printf -v remote_cmd 'bash -lc %q' "$inner_cmd"
+
+exec ssh -o ConnectTimeout=3 \
+         -o BatchMode=yes \
+         -p "$MAC_PORT" \
+         "${MAC_USER}@localhost" \
+         "$remote_cmd"
